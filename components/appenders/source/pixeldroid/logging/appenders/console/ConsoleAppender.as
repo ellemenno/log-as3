@@ -10,13 +10,11 @@ package pixeldroid.logging.appenders.console
 	import flash.text.TextField;
 	import flash.text.TextFormat;
 	import flash.text.TextFormatAlign;
-	import flash.ui.Keyboard;
 
 	import pixeldroid.logging.ILogAppender;
 	import pixeldroid.logging.ILogConfig;
 	import pixeldroid.logging.ILogEntry;
 	import pixeldroid.logging.LogUtils;
-	import pixeldroid.logging.Logger;
 
 
 	/**
@@ -45,7 +43,7 @@ package pixeldroid.logging.appenders.console
 	 * see the constructor documentation for more options:
 	 * <listing version="3.0" >
 	 * package {
-	 *    import com.pixeldroid.logging.appenders.console.ConsoleAppender;
+	 *    import pixeldroid.logging.appenders.console.ConsoleAppender;
 	 *    import flash.display.Sprite;
 	 *
 	 *    public class MyConsoleExample extends Sprite {
@@ -53,7 +51,7 @@ package pixeldroid.logging.appenders.console
 	 * 	  public function MyConsoleExample() {
 	 * 		 super();
 	 * 		 addChild(console);
-	 * 		 info("Hello World");
+	 * 		 info("Console added and ready");
 	 * 	  }
 	 *    }
 	 * }
@@ -74,34 +72,34 @@ package pixeldroid.logging.appenders.console
 
 		protected var background:Shape;
 		protected var console:TextField;
-		protected var properties:ConsoleAppenderProperties;
 		protected var loggingPaused:Boolean;
-		protected var bufferMax:int;
+
+		protected var _properties:ConsoleAppenderProperties;
 
 
 		/**
-		* Create a new Console with optional parameters.
-		*
-		* @param properties Optional instance of ConsoleAppenderProperties for custom settings
-		*
-		* @see com.pixeldroid.logging.appender.console.ConsoleAppenderProperties
-		*/
+		 * Create a new Console with optional parameters.
+		 *
+		 * @param properties Optional instance of ConsoleAppenderProperties for custom settings
+		 *
+		 * @see pixeldroid.logging.appenders.console.ConsoleAppenderProperties
+		 */
 		public function ConsoleAppender(properties:ConsoleAppenderProperties = null)
 		{
 			super();
 
-			this.properties = properties || new ConsoleAppenderProperties();
+			_properties = properties || new ConsoleAppenderProperties();
 			loggingPaused = true;
 
-			addEventListener(Event.ADDED_TO_STAGE, init);
+			addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
 		}
 
 		/**
-		* Append a message to the bottom of the console, scrolling older content up.
-		*
-		* @param logEntry Entry containing message to log
-		* @param config Logging configuration defining message formatting pattern
-		*/
+		 * Append a message to the bottom of the console, scrolling older content up.
+		 *
+		 * @param logEntry Entry containing message to log
+		 * @param config Logging configuration defining message formatting pattern
+		 */
 		public function append(logEntry:ILogEntry, config:ILogConfig):void
 		{
 			consoleAppend(LogUtils.formatString(config.pattern, logEntry));
@@ -109,8 +107,8 @@ package pixeldroid.logging.appenders.console
 
 
 		/**
-		* Clear all messages from the console.
-		*/
+		 * Clear all messages from the console.
+		 */
 		public function clear():void
 		{
 			console.replaceText(0, console.length, "");
@@ -118,8 +116,8 @@ package pixeldroid.logging.appenders.console
 
 
 		/**
-		* Hide the console. Messages are still received.
-		*/
+		 * Hide the console. Messages are still received.
+		 */
 		public function hide():void
 		{
 			visible = false;
@@ -127,18 +125,31 @@ package pixeldroid.logging.appenders.console
 
 
 		/**
-		* Pause the console. Messages received while paused are ignored.
-		*/
+		 * Pause the console. Messages received while paused are ignored.
+		 */
 		public function pause():void
 		{
 			consoleAppend("<PAUSE>");
 			loggingPaused = true;
 		}
 
+		/** @private */
+		public function get properties():ConsoleAppenderProperties  { return _properties; }
+
 
 		/**
-		* Resume the console.
-		*/
+		 * The current console property values for color, dimension, buffersize, etc.
+		 */
+		public function set properties(value:ConsoleAppenderProperties):void
+		{
+			_properties = value;
+			applyProperties();
+		}
+
+
+		/**
+		 * Resume the console.
+		 */
 		public function resume():void
 		{
 			loggingPaused = false;
@@ -147,8 +158,8 @@ package pixeldroid.logging.appenders.console
 
 
 		/**
-		* Show the console.
-		*/
+		 * Show the console.
+		 */
 		public function show():void
 		{
 			visible = true;
@@ -156,17 +167,50 @@ package pixeldroid.logging.appenders.console
 
 
 		/**
-		* Retrieve human readable instructions for manipulating the console.
-		*/
+		 * The currently configured human readable instructions for manipulating the console.
+		 */
 		public function get usage():String
 		{
-			var s:String = "";
-			s += "Console Usage :\n";
-			s += "  tick (`) toggles hide\n";
-			s += "  ctrl-tick toggles pause\n";
-			s += "  ctrl-bkspc clears";
-			return s;
+			return _properties.usage;
 		}
+
+
+		/**
+		 * Apply the current property values to the configurable console parts
+		 */
+		protected function applyProperties():void
+		{
+			background.graphics.clear();
+			background.graphics.beginFill(_properties.backColor, _properties.backAlpha);
+			background.graphics.drawRect(0, 0, _properties.width, _properties.height);
+			background.graphics.endFill();
+
+			const format:TextFormat = new TextFormat();
+			format.font = "FONT_CONSOLE";
+			format.color = _properties.foreColor;
+			format.size = _properties.fontSize;
+			format.align = TextFormatAlign.LEFT;
+			format.leading = _properties.leading;
+
+			const oldText:String = console.text;
+			clear();
+
+			console.antiAliasType = (format.size > 24) ? AntiAliasType.NORMAL : AntiAliasType.ADVANCED;
+			console.gridFitType = GridFitType.PIXEL;
+			console.embedFonts = true;
+			console.defaultTextFormat = format;
+			console.multiline = true;
+			console.selectable = true;
+			console.wordWrap = true;
+			console.width = _properties.width;
+			console.height = _properties.height;
+
+			const oldState:Boolean = loggingPaused;
+			loggingPaused = false;
+			consoleAppend(oldText);
+			loggingPaused = oldState;
+		}
+
 
 		/**
 		 * Do the actual work of adding text to the end of the textfield and
@@ -177,7 +221,7 @@ package pixeldroid.logging.appenders.console
 			if (loggingPaused == false)
 			{
 				console.appendText(message + "\n");
-				var overage:int = console.numLines - bufferMax;
+				const overage:int = console.numLines - _properties.bufferSize;
 				if (overage > 0)
 					console.replaceText(0, console.getLineOffset(overage), "");
 				console.scrollV = console.maxScrollV;
@@ -185,71 +229,46 @@ package pixeldroid.logging.appenders.console
 		}
 
 
-		protected function init(e:Event):void
-		{
-			removeEventListener(Event.ADDED_TO_STAGE, init);
-
-			stage.addEventListener(KeyboardEvent.KEY_DOWN, keyDownHandler);
-
-			background = new Shape();
-			background.graphics.beginFill(properties.backColor, properties.backAlpha);
-			background.graphics.drawRect(0, 0, properties.width, properties.height);
-			background.graphics.endFill();
-			addChild(background);
-
-			var format:TextFormat = new TextFormat();
-			format.font = "FONT_CONSOLE";
-			format.color = properties.foreColor;
-			format.size = properties.fontSize;
-			format.align = TextFormatAlign.LEFT;
-			format.leading = properties.leading;
-
-			console = new TextField();
-			console.antiAliasType = (format.size > 24) ? AntiAliasType.NORMAL : AntiAliasType.ADVANCED;
-			console.gridFitType = GridFitType.PIXEL;
-			console.embedFonts = true;
-			console.defaultTextFormat = format;
-			console.multiline = true;
-			console.selectable = true;
-			console.wordWrap = true;
-			addChild(console);
-
-			console.width = properties.width;
-			console.height = properties.height;
-
-			bufferMax = properties.bufferSize;
-
-			loggingPaused = false;
-
-			consoleAppend("");
-			consoleAppend(usage);
-			consoleAppend("");
-		}
-
 		/**
-		* Override to change keyboard shortcuts.
-		* By default:
-		* <ul>
-		* <li>tick (`) toggles hide</li>
-		* <li>ctrl-tick toggles pause</li>
-		* <li>ctrl-bkspc clears</li>
-		* </ul>
-		*
-		* <p>
-		* If you overide this method, consider overriding the usage getter as well.
-		* </p>
-		*/
+		 * Watches for keyboard hotkeys.
+		 * By default:
+		 * <ul>
+		 * <li>tick (`) toggles hide</li>
+		 * <li>ctrl-tick toggles pause</li>
+		 * <li>ctrl-bkspc clears</li>
+		 * </ul>
+		 */
 		protected function keyDownHandler(e:KeyboardEvent):void
 		{
-			if ("`" == String.fromCharCode(e.charCode))
+			if (e.charCode == _properties.hideKeyCode)
 			{
 				if (e.ctrlKey == true)
 					toggleLog();
 				else
 					toggleVis();
 			}
-			else if ((e.keyCode == Keyboard.BACKSPACE) && (e.ctrlKey == true))
+			else if ((e.keyCode == _properties.clearKeyCode) && (e.ctrlKey == true))
 				clear();
+		}
+
+		/**
+		 * Initialize
+		 */
+		protected function onAddedToStage(e:Event):void
+		{
+			removeEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
+
+			stage.addEventListener(KeyboardEvent.KEY_DOWN, keyDownHandler);
+
+			addChild(background = new Shape());
+			addChild(console = new TextField());
+			applyProperties();
+
+			loggingPaused = false;
+
+			consoleAppend("");
+			consoleAppend(_properties.usage);
+			consoleAppend("");
 		}
 
 		protected function toggleLog():void  {(loggingPaused == true) ? resume() : pause(); }
